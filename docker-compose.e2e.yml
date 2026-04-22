@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16
+    env_file: .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  agentboard-web:
+    image: placeholder
+    # Replace with built image tag
+    ports:
+      - "5173:5173"
+    depends_on:
+      - postgres
+
+  agentboard-auth:
+    image: placeholder
+    # Replace with built image tag
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  agentboard-board:
+    image: placeholder
+    # Replace with built image tag
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  agentboard-agent:
+    image: placeholder
+    # Replace with built image tag
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

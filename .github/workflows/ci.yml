@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy env file
+        run: cp .env.example .env
+
+      - name: Validate docker-compose.yml
+        run: docker compose config
+
+      - name: Validate docker-compose.test.yml
+        run: docker compose -f docker-compose.test.yml config
+
+      - name: Validate docker-compose.e2e.yml
+        run: docker compose -f docker-compose.e2e.yml config
