@@ -38,14 +38,5 @@ services:
       postgres:
         condition: service_healthy
 
-  agentboard-agent:
-    image: placeholder
-    # Replace with built image tag
-    ports:
-      - "8082:8082"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
 volumes:
   pgdata:

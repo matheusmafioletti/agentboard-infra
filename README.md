@@ -30,7 +30,7 @@ docker compose down
 |------|---------|-------|
 | `docker-compose.yml` | Local development with pgAdmin | postgres:5432, pgAdmin:5050 |
 | `docker-compose.test.yml` | Integration test environment | postgres:5433 (no pgAdmin) |
-| `docker-compose.e2e.yml` | E2E test environment with app service placeholders | postgres:5432, apps:8080-8082,5173 |
+| `docker-compose.e2e.yml` | E2E test environment with app service placeholders | postgres:5432, apps:8080-8081,5173 |
 
 ## Seeding Data
 
