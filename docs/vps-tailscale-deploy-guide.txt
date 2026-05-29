@@ -1,0 +1,323 @@
+================================================================================
+  AgentBoard — Guia VPS (Contabo) + Tailscale + Deploy automático
+  Ubuntu 24.04 (Noble) | SSH só via Tailscale | Demo público em HTTP/HTTPS
+================================================================================
+
+IMPORTANTE — Ordem dos passos
+  1.1 Chaves SSH no authorized_keys  →  DEPOIS 1.2 hardening  →  testar com -i
+  1.3 Tailscale  →  testar SSH pelo IP Tailscale (100.x.x.x)
+  1.4 Docker (NÃO instalar docker.io se já tiver docker-ce)  →  infra em /opt/agentboard
+  Parte 2 Fechar SSH no IP público (UFW + painel Contabo)
+  Parte 3 Secrets GitHub + Tailscale no workflow de deploy
+
+Mantenha sempre uma sessão root aberta OU o console web da Contabo até validar o SSH.
+
+
+================================================================================
+PARTE 0 — Pré-requisitos no seu PC (Windows)
+================================================================================
+
+Gerar chave pessoal (acesso manual à VPS):
+
+  ssh-keygen -t ed25519 -C "matheus-notebook" -f %USERPROFILE%\.ssh\id_agentboard_vps
+
+Gerar chave só para GitHub Actions (NÃO reutilizar a pessoal):
+
+  ssh-keygen -t ed25519 -C "github-actions-deploy" -f %USERPROFILE%\.ssh\github_agentboard_deploy
+
+Ver chaves públicas (copiar para a VPS):
+
+  type %USERPROFILE%\.ssh\id_agentboard_vps.pub
+  type %USERPROFILE%\.ssh\github_agentboard_deploy.pub
+
+Chave privada do deploy → secret VPS_SSH_KEY no GitHub (conteúdo de github_agentboard_deploy,
+  incluindo BEGIN/END OPENSSH PRIVATE KEY).
+
+
+================================================================================
+PARTE 1 — Bootstrap na VPS (ainda com SSH pelo IP público da Contabo)
+================================================================================
+
+--------------------------------------------------------------------------------
+1.1 — Usuário deploy + chaves SSH (FAZER ANTES DO 1.2)
+--------------------------------------------------------------------------------
+
+Como root:
+
+  adduser deploy
+  usermod -aG sudo deploy
+
+  mkdir -p /home/deploy/.ssh
+  chmod 700 /home/deploy/.ssh
+  nano /home/deploy/.ssh/authorized_keys
+
+Cole DUAS linhas (uma de cada .pub do seu PC):
+  - id_agentboard_vps.pub
+  - github_agentboard_deploy.pub
+
+  chmod 600 /home/deploy/.ssh/authorized_keys
+  chown -R deploy:deploy /home/deploy/.ssh
+
+Testar NO SEU PC (PowerShell) — obrigatório usar -i se o nome do arquivo não for o padrão:
+
+  ssh -i $env:USERPROFILE\.ssh\id_agentboard_vps deploy@SEU_IP_PUBLICO
+
+Se der "Permission denied (publickey)": chave não está no authorized_keys ou permissões erradas.
+NÃO avance para desligar senha no SSH até este comando funcionar.
+
+
+--------------------------------------------------------------------------------
+1.2 — Hardening SSH (só depois das chaves funcionarem)
+--------------------------------------------------------------------------------
+
+Editar /etc/ssh/sshd_config (como root):
+
+  PermitRootLogin no
+  PasswordAuthentication no
+  KbdInteractiveAuthentication no
+  PubkeyAuthentication yes
+  AllowUsers deploy
+
+Ubuntu 24.04 — serviço se chama "ssh", não "sshd":
+
+  sudo sshd -t
+  sudo systemctl restart ssh
+
+Testar em OUTRO terminal (não feche o root ainda):
+
+  ssh -i $env:USERPROFILE\.ssh\id_agentboard_vps deploy@SEU_IP_PUBLICO
+
+Após PasswordAuthentication no, senha do usuário deploy NÃO funciona mais no SSH.
+
+
+--------------------------------------------------------------------------------
+1.3 — Instalar Tailscale
+--------------------------------------------------------------------------------
+
+Como root (ou deploy com sudo):
+
+  curl -fsSL https://tailscale.com/install.sh | sh
+  sudo tailscale up
+
+Autentique no browser. Anote o IP Tailscale:
+
+  tailscale ip -4
+
+Exemplo: 100.71.12.34
+
+Testar SSH pelo Tailscale (no PC, com Tailscale conectado):
+
+  ssh -i $env:USERPROFILE\.ssh\id_agentboard_vps deploy@100.x.x.x
+
+Opcional: MagicDNS no admin Tailscale → hostname tipo vmi3332496.seu-tailnet.ts.net
+
+
+--------------------------------------------------------------------------------
+1.4 — Docker + clone agentboard-infra
+--------------------------------------------------------------------------------
+
+*** CORREÇÃO DO ERRO containerd.io Conflicts: containerd ***
+
+Causa: misturar pacote Ubuntu "docker.io" com repositório oficial Docker (docker-ce),
+que já instala "containerd.io". Na sua VPS o docker-compose-plugin do repo oficial
+já está instalado — NÃO rode "apt install docker.io".
+
+Passo A — Verificar se Docker já funciona:
+
+  docker --version
+  docker compose version
+  sudo docker ps
+
+Se os três funcionarem, PULE a instalação e só execute:
+
+  sudo usermod -aG docker deploy
+
+Depois saia e entre de novo como deploy (ou: newgrp docker) para o grupo valer:
+
+  exit
+  ssh -i ... deploy@...
+  groups
+  docker ps
+
+Passo B — Se "docker: command not found", instale SOMENTE o stack oficial (como root):
+
+  sudo apt update
+  sudo apt install -y ca-certificates curl
+  sudo install -m 0755 -d /etc/apt/keyrings
+  sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  sudo chmod a+r /etc/apt/keyrings/docker.asc
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  sudo apt update
+  sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  sudo usermod -aG docker deploy
+
+NUNCA instale docker.io junto com docker-ce na mesma máquina.
+
+Passo C — Infra do projeto (como deploy, após docker funcionar):
+
+  sudo mkdir -p /opt/agentboard
+  sudo chown deploy:deploy /opt/agentboard
+
+  cd /opt/agentboard
+  git clone https://github.com/agentboard/agentboard-infra.git .
+  cp .env.prod.example .env.prod
+  nano .env.prod
+
+Preencher em .env.prod (exemplos):
+  GHCR_REGISTRY=ghcr.io/agentboard
+  POSTGRES_PASSWORD=<senha forte>
+  JWT_SECRET=<mínimo 32 caracteres aleatórios>
+  CORS_ALLOWED_ORIGINS=https://seu-dominio.com
+  WEBSOCKET_ALLOWED_ORIGINS=https://seu-dominio.com
+  INVITE_BASE_URL=https://seu-dominio.com
+
+Login no GHCR (PAT GitHub com permissão read:packages):
+
+  echo SEU_PAT | docker login ghcr.io -u SEU_USUARIO_GITHUB --password-stdin
+
+Tornar pacotes GHCR públicos OU manter login acima no VPS após reboot (considere credential store).
+
+
+================================================================================
+PARTE 2 — Fechar SSH no IP público (só Tailscale)
+================================================================================
+
+Pré-requisito: SSH pelo IP 100.x.x.x já funciona com chave.
+
+2.1 — UFW
+
+  sudo ufw default deny incoming
+  sudo ufw default allow outgoing
+  sudo ufw allow 80/tcp
+  sudo ufw allow 443/tcp
+  sudo ufw allow in on tailscale0 to any port 22 proto tcp
+  sudo ufw enable
+  sudo ufw status verbose
+
+NÃO execute: ufw allow 22/tcp  (abriria SSH para o mundo)
+
+2.2 — Painel Contabo
+
+No firewall do painel: bloquear TCP 22 no IP público (redundância).
+
+2.3 — (Opcional) sshd só no IP Tailscale
+
+Em /etc/ssh/sshd_config adicionar (use SEU IP do tailscale ip -4):
+
+  ListenAddress 100.x.x.x
+
+  sudo sshd -t
+  sudo systemctl restart ssh
+
+2.4 — Validar
+
+Do PC, Tailscale ligado:
+
+  ssh -i ... deploy@100.x.x.x          → deve ENTRAR
+
+  ssh -i ... deploy@IP_PUBLICO_CONTABO → deve FALHAR (timeout ou recusado)
+
+Demo web: portas 80/443 continuam abertas no IP público — isso é intencional.
+
+
+================================================================================
+PARTE 3 — Deploy automático (GitHub Actions + Tailscale)
+================================================================================
+
+Problema: runners do GitHub não estão na sua tailnet. Solução: action Tailscale
+no job deploy ANTES do SSH. VPS_HOST deve ser o IP Tailscale (100.x.x.x), NÃO o IP público.
+
+3.1 — Auth key + ACL (tag:deploy-server)
+
+  - Auth key com tag tag:ci (ou OAuth client que aplica tag:ci nos runners)
+  - VPS: sudo tailscale up --advertise-tags=tag:deploy-server  (aprovar no admin)
+
+Grants mínimos (formato grants, não legacy acls):
+
+  tag:ci → tag:deploy-server, ip tcp:22  (SSH clássico para appleboy/ssh-action)
+  autogroup:member → tag:deploy-server, ip tcp:22  (seu acesso com chave)
+
+Comando de tag na VPS (NÃO usar tailscale set — flag não existe):
+
+  sudo tailscale up --advertise-tags=tag:deploy-server
+
+3.2 — Secrets nos repositórios agentboard-backend e agentboard-web
+
+  TAILSCALE_AUTHKEY     auth key do passo acima
+  VPS_HOST              100.x.x.x ou hostname MagicDNS
+  VPS_USER              deploy
+  VPS_SSH_KEY           chave privada github_agentboard_deploy (inteira)
+  VPS_DEPLOY_PATH       /opt/agentboard
+  DEMO_PUBLIC_URL       https://seu-dominio.com   (somente no repo agentboard-web)
+
+3.3 — Workflows (implementado em agentboard-backend e agentboard-web)
+
+No job deploy, após build/push GHCR e antes do appleboy/ssh-action:
+
+  - name: Connect to Tailscale
+    uses: tailscale/github-action@v2
+    with:
+      authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+      tags: tag:ci
+
+VPS_HOST = IP Tailscale (100.x.x.x). Imagens: ghcr.io/<seu-usuario-github>/agentboard-*
+
+No .env.prod da VPS: GHCR_REGISTRY=ghcr.io/matheusmafioletti  (ajuste ao seu usuário)
+
+Documentação: https://github.com/tailscale/github-action
+
+3.4 — Primeiro deploy manual (recomendado)
+
+Na VPS (via Tailscale):
+
+  cd /opt/agentboard
+  docker compose --env-file .env.prod -f docker-compose.prod.yml pull
+  docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+
+Depois merge em main nos repos backend e web dispara CI → GHCR → SSH deploy.
+
+3.5 — DNS e SSL do demo
+
+  - Registro A do domínio → IP público Contabo (não o 100.x.x.x)
+  - Certbot no host ou proxy SSL na frente do nginx (porta 80 do compose)
+
+
+================================================================================
+PARTE 4 — Checklist final
+================================================================================
+
+[ ] authorized_keys com 2 chaves + permissões 700/600
+[ ] ssh -i chave deploy@IP público OK (antes de fechar)
+[ ] tailscale up + ssh -i chave deploy@100.x.x.x OK
+[ ] docker compose version OK (sem docker.io)
+[ ] /opt/agentboard + .env.prod preenchido
+[ ] docker login ghcr.io OK
+[ ] UFW: 80/443 abertos, 22 só tailscale0
+[ ] SSH no IP público falha
+[ ] Secrets GitHub + tailscale/github-action no workflow
+[ ] DEMO_PUBLIC_URL = URL pública real do frontend
+
+
+================================================================================
+Troubleshooting rápido
+================================================================================
+
+Permission denied (publickey)
+  → authorized_keys vazio/errado; testar com -i; chown deploy:deploy
+
+systemctl restart sshd → Unit not found
+  → usar: sudo systemctl restart ssh
+
+containerd.io Conflicts: containerd
+  → não instalar docker.io; usar docker-ce OU só "usermod -aG docker" se docker já existe
+
+Deploy GitHub falha após fechar IP público
+  → VPS_HOST deve ser IP Tailscale; adicionar tailscale/github-action no job deploy
+
+Site inacessível
+  → abrir 80/443 no UFW; DNS apontando para IP público; nginx up: docker compose ps
+
+================================================================================
+Fim do guia
+================================================================================
