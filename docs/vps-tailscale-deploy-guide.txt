@@ -228,9 +228,9 @@ PARTE 3 — Deploy automático (GitHub Actions + Tailscale)
 Problema: runners do GitHub não estão na sua tailnet. Solução: action Tailscale
 no job deploy ANTES do SSH. VPS_HOST deve ser o IP Tailscale (100.x.x.x), NÃO o IP público.
 
-3.1 — Auth key + ACL (tag:deploy-server)
+3.1 — OAuth client + ACL (tag:deploy-server)
 
-  - Auth key com tag tag:ci (ou OAuth client que aplica tag:ci nos runners)
+  - OAuth client com scope auth_keys (write) e tag tag:ci nos runners
   - VPS: sudo tailscale up --advertise-tags=tag:deploy-server  (aprovar no admin)
 
 Grants mínimos (formato grants, não legacy acls):
@@ -244,7 +244,8 @@ Comando de tag na VPS (NÃO usar tailscale set — flag não existe):
 
 3.2 — Secrets nos repositórios agentboard-backend e agentboard-web
 
-  TAILSCALE_AUTHKEY     auth key do passo acima
+  TS_OAUTH_CLIENT_ID    Client ID do OAuth client (Tailscale admin)
+  TS_OAUTH_SECRET       Client secret do OAuth client
   VPS_HOST              100.x.x.x ou hostname MagicDNS
   VPS_USER              deploy
   VPS_SSH_KEY           chave privada github_agentboard_deploy (inteira)
@@ -258,7 +259,8 @@ No job deploy, após build/push GHCR e antes do appleboy/ssh-action:
   - name: Connect to Tailscale
     uses: tailscale/github-action@v2
     with:
-      authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+      oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
       tags: tag:ci
 
 VPS_HOST = IP Tailscale (100.x.x.x). Imagens: ghcr.io/<seu-usuario-github>/agentboard-*

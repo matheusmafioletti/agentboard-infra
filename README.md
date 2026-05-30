@@ -64,7 +64,8 @@ Configure em `agentboard-backend` e `agentboard-web`:
 | Secret | Exemplo |
 |--------|---------|
 | `VPS_HOST` | `100.x.x.x` (IP Tailscale da VPS) |
-| `TAILSCALE_AUTHKEY` | auth key com tag `tag:ci` |
+| `TS_OAUTH_CLIENT_ID` | OAuth client ID (scope `auth_keys`, tag `tag:ci`) |
+| `TS_OAUTH_SECRET` | OAuth client secret |
 | `VPS_USER` | `deploy` |
 | `VPS_SSH_KEY` | chave privada SSH |
 | `VPS_DEPLOY_PATH` | `/opt/agentboard` |
