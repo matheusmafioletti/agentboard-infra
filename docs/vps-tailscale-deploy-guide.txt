@@ -242,15 +242,18 @@ Comando de tag na VPS (NÃO usar tailscale set — flag não existe):
 
   sudo tailscale up --advertise-tags=tag:deploy-server
 
-3.2 — Secrets nos repositórios agentboard-backend e agentboard-web
+3.2 — GitHub Actions: variables e secrets (agentboard-backend e agentboard-web)
 
-  TS_OAUTH_CLIENT_ID    Client ID do OAuth client (Tailscale admin)
-  TS_OAUTH_SECRET       Client secret do OAuth client
+  Variables (Settings → Secrets and variables → Actions → Variables):
   VPS_HOST              100.x.x.x ou hostname MagicDNS
   VPS_USER              deploy
-  VPS_SSH_KEY           chave privada github_agentboard_deploy (inteira)
   VPS_DEPLOY_PATH       /opt/agentboard
   DEMO_PUBLIC_URL       https://seu-dominio.com   (somente no repo agentboard-web)
+
+  Secrets (Settings → Secrets and variables → Actions → Secrets):
+  TS_OAUTH_CLIENT_ID    Client ID do OAuth client (Tailscale admin)
+  TS_OAUTH_SECRET       Client secret do OAuth client
+  VPS_SSH_KEY           chave privada github_agentboard_deploy (inteira)
 
 3.3 — Workflows (implementado em agentboard-backend e agentboard-web)
 

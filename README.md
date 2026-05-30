@@ -61,15 +61,15 @@ echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 
 Configure em `agentboard-backend` e `agentboard-web`:
 
-| Secret | Exemplo |
-|--------|---------|
-| `VPS_HOST` | `100.x.x.x` (IP Tailscale da VPS) |
-| `TS_OAUTH_CLIENT_ID` | OAuth client ID (scope `auth_keys`, tag `tag:ci`) |
-| `TS_OAUTH_SECRET` | OAuth client secret |
-| `VPS_USER` | `deploy` |
-| `VPS_SSH_KEY` | chave privada SSH |
-| `VPS_DEPLOY_PATH` | `/opt/agentboard` |
-| `DEMO_PUBLIC_URL` | `https://demo.example.com` (apenas no repo web) |
+| Variable / Secret | Exemplo |
+|-------------------|---------|
+| Variable `VPS_HOST` | `100.x.x.x` (IP Tailscale da VPS) |
+| Variable `VPS_USER` | `deploy` |
+| Variable `VPS_DEPLOY_PATH` | `/opt/agentboard` |
+| Variable `DEMO_PUBLIC_URL` | `https://demo.example.com` (apenas no repo web) |
+| Secret `TS_OAUTH_CLIENT_ID` | OAuth client ID |
+| Secret `TS_OAUTH_SECRET` | OAuth client secret |
+| Secret `VPS_SSH_KEY` | chave privada SSH |
 
 ### 3. Deploy automático
 
