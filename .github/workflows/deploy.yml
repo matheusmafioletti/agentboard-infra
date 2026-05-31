@@ -100,5 +100,7 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ vars.VPS_DEPLOY_PATH }}"
+            git pull --ff-only
+            test -f scripts/deploy-remote.sh
             export DEPLOY_DIR="${{ vars.VPS_DEPLOY_PATH }}"
             bash scripts/deploy-remote.sh
