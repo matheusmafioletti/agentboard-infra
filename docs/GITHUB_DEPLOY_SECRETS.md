@@ -54,6 +54,14 @@ Não são mais usados nos workflows:
 - `VPS_SSH_KEY`
 - Variables `VPS_HOST`, `VPS_USER`, `VPS_DEPLOY_PATH` (backend)
 
+## Troubleshooting
+
+### `Parameter token or opts.auth is required` (repository-dispatch)
+
+O secret **`INFRA_DEPLOY_PAT`** não está configurado no repositório que disparou o workflow
+(`agentboard-backend` ou `agentboard-web`). Crie o PAT conforme a seção acima e adicione o secret
+com esse nome exato (case-sensitive).
+
 ## Rollout checklist
 
 1. Configurar variables/secrets no repo **infra** (tabela acima).
