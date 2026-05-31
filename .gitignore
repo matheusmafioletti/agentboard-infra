@@ -1,4 +1,6 @@
 .env
+.env.prod
+.image-tags
 pgdata/
 *.local.yml
 *.log

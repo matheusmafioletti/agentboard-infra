@@ -1,0 +1,104 @@
+name: Deploy
+
+on:
+  repository_dispatch:
+    types: [deploy-backend, deploy-web]
+  workflow_dispatch:
+    inputs:
+      deploy_mode:
+        description: Deploy scope
+        required: true
+        default: full
+        type: choice
+        options:
+          - full
+          - backend
+          - web
+      auth_tag:
+        description: AUTH_IMAGE_TAG (empty = keep current on VPS)
+        required: false
+        type: string
+      board_tag:
+        description: BOARD_IMAGE_TAG (empty = keep current on VPS)
+        required: false
+        type: string
+      api_docs_tag:
+        description: API_DOCS_IMAGE_TAG (empty = keep current on VPS)
+        required: false
+        type: string
+      web_tag:
+        description: WEB_IMAGE_TAG (empty = keep current on VPS)
+        required: false
+        type: string
+
+concurrency:
+  group: vps-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve deploy mode
+        id: mode
+        run: |
+          if [[ "${{ github.event_name }}" == "repository_dispatch" ]]; then
+            case "${{ github.event.action }}" in
+              deploy-backend) echo "mode=backend" >> "$GITHUB_OUTPUT" ;;
+              deploy-web) echo "mode=web" >> "$GITHUB_OUTPUT" ;;
+              *) echo "Unknown dispatch action" >&2; exit 1 ;;
+            esac
+          else
+            echo "mode=${{ inputs.deploy_mode }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve image tags
+        id: tags
+        run: |
+          write_tag() {
+            local name=$1
+            local value=$2
+            echo "${name}=${value}" >> "$GITHUB_OUTPUT"
+          }
+          if [[ "${{ github.event_name }}" == "repository_dispatch" ]]; then
+            write_tag auth_tag "${{ github.event.client_payload.auth_tag }}"
+            write_tag board_tag "${{ github.event.client_payload.board_tag }}"
+            write_tag api_docs_tag "${{ github.event.client_payload.api_docs_tag }}"
+            write_tag web_tag "${{ github.event.client_payload.web_tag }}"
+          else
+            write_tag auth_tag "${{ inputs.auth_tag }}"
+            write_tag board_tag "${{ inputs.board_tag }}"
+            write_tag api_docs_tag "${{ inputs.api_docs_tag }}"
+            write_tag web_tag "${{ inputs.web_tag }}"
+          fi
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_MODE: ${{ steps.mode.outputs.mode }}
+          GHCR_REGISTRY: ${{ vars.GHCR_REGISTRY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DEMO_PUBLIC_URL: ${{ vars.DEMO_PUBLIC_URL }}
+          AUTH_IMAGE_TAG: ${{ steps.tags.outputs.auth_tag }}
+          BOARD_IMAGE_TAG: ${{ steps.tags.outputs.board_tag }}
+          API_DOCS_IMAGE_TAG: ${{ steps.tags.outputs.api_docs_tag }}
+          WEB_IMAGE_TAG: ${{ steps.tags.outputs.web_tag }}
+        with:
+          host: ${{ vars.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: DEPLOY_MODE,GHCR_REGISTRY,POSTGRES_PASSWORD,JWT_SECRET,DEMO_PUBLIC_URL,AUTH_IMAGE_TAG,BOARD_IMAGE_TAG,API_DOCS_IMAGE_TAG,WEB_IMAGE_TAG
+          script: |
+            set -euo pipefail
+            cd "${{ vars.VPS_DEPLOY_PATH }}"
+            export DEPLOY_DIR="${{ vars.VPS_DEPLOY_PATH }}"
+            bash scripts/deploy-remote.sh

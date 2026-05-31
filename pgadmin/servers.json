@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "AgentBoard Local",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "agentboard",
+      "Username": "agentboard",
+      "SSLMode": "prefer"
+    }
+  }
+}
