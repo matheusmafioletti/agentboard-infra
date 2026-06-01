@@ -104,3 +104,19 @@ jobs:
             test -f scripts/deploy-remote.sh
             export DEPLOY_DIR="${{ vars.VPS_DEPLOY_PATH }}"
             bash scripts/deploy-remote.sh
+
+      - name: Bootstrap host SSL (if missing)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ vars.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            if [[ -f /etc/letsencrypt/live/agentboard.matheusmafioletti.com/fullchain.pem ]]; then
+              echo "SSL certificate already present — skipping bootstrap"
+              exit 0
+            fi
+            cd "${{ vars.VPS_DEPLOY_PATH }}"
+            test -f scripts/bootstrap-host-ssl.sh
+            sudo bash scripts/bootstrap-host-ssl.sh
