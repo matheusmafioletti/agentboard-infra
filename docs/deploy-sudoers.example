@@ -1,0 +1,11 @@
+# One-time VPS setup: allow deploy user to run SSL bootstrap without password.
+# As root on the VPS:
+#
+#   sudo cp docs/deploy-sudoers.example /etc/sudoers.d/agentboard-deploy
+#   sudo chmod 440 /etc/sudoers.d/agentboard-deploy
+#   sudo visudo -cf /etc/sudoers.d/agentboard-deploy
+#
+# Then re-run Deploy workflow (full) or manually:
+#   cd /opt/agentboard && sudo bash scripts/bootstrap-host-ssl.sh
+
+deploy ALL=(root) NOPASSWD: /opt/agentboard/scripts/bootstrap-host-ssl.sh

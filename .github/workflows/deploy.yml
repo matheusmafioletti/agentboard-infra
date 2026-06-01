@@ -106,16 +106,23 @@ jobs:
             bash scripts/deploy-remote.sh
 
       - name: Bootstrap host SSL (if missing)
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ vars.VPS_HOST }}
           username: ${{ vars.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 15m
           script: |
             set -euo pipefail
             if [[ -f /etc/letsencrypt/live/agentboard.matheusmafioletti.com/fullchain.pem ]]; then
               echo "SSL certificate already present — skipping bootstrap"
               exit 0
+            fi
+            if ! sudo -n true 2>/dev/null; then
+              echo "deploy user needs passwordless sudo for SSL bootstrap (one-time VPS setup):" >&2
+              echo "  docs/host-nginx-agentboard.conf.example + sudo bash scripts/bootstrap-host-ssl.sh" >&2
+              exit 1
             fi
             cd "${{ vars.VPS_DEPLOY_PATH }}"
             test -f scripts/bootstrap-host-ssl.sh

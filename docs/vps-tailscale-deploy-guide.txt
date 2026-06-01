@@ -287,9 +287,15 @@ Documentação Tailscale: https://github.com/tailscale/github-action
 
   Bootstrap na VPS (após deploy com bind localhost):
 
-    cd /opt/agentboard
-    git pull
-    sudo bash scripts/bootstrap-host-ssl.sh
+    Opção A — uma vez como root (recomendado na primeira vez):
+      cd /opt/agentboard && git pull
+      sudo bash scripts/bootstrap-host-ssl.sh
+
+    Opção B — permitir bootstrap automático via GitHub Actions:
+      sudo cp docs/deploy-sudoers.example /etc/sudoers.d/agentboard-deploy
+      sudo chmod 440 /etc/sudoers.d/agentboard-deploy
+      sudo visudo -cf /etc/sudoers.d/agentboard-deploy
+      # Re-run Deploy workflow (full) — step "Bootstrap host SSL" executa o script
 
   Ou manualmente:
     sudo apt install -y nginx certbot python3-certbot-nginx
