@@ -187,7 +187,7 @@ Production uses **host nginx** on ports 80/443 for TLS termination. Docker nginx
 | `agentboard.matheusmafioletti.com` | Docker stack via `127.0.0.1:8080` |
 | `matheusmafioletti.com` | Static files in `/var/www/portfolio` |
 
-Setup: [`docs/DNS.md`](docs/DNS.md), [`docs/host-nginx-agentboard.conf.example`](docs/host-nginx-agentboard.conf.example), [`scripts/bootstrap-host-ssl.sh`](scripts/bootstrap-host-ssl.sh).
+Setup: [`docs/DNS.md`](docs/DNS.md), [`docs/SSL-BOOTSTRAP.md`](docs/SSL-BOOTSTRAP.md), [`docs/host-nginx-agentboard.conf.example`](docs/host-nginx-agentboard.conf.example), [`scripts/bootstrap-host-ssl.sh`](scripts/bootstrap-host-ssl.sh).
 
 `DEMO_PUBLIC_URL`: `https://agentboard.matheusmafioletti.com`
 
