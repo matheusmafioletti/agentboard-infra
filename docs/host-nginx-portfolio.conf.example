@@ -1,0 +1,26 @@
+# Host nginx — Portfolio (matheusmafioletti.com)
+# Copy to /etc/nginx/sites-available/portfolio on the VPS, then:
+#   sudo mkdir -p /var/www/portfolio
+#   sudo ln -sf /etc/nginx/sites-available/portfolio /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Deploy static build: rsync/scp dist/ → /var/www/portfolio/
+#
+# Certbot (combined with agentboard domain):
+#   sudo certbot --nginx \
+#     -d agentboard.matheusmafioletti.com \
+#     -d matheusmafioletti.com \
+#     -d www.matheusmafioletti.com
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name matheusmafioletti.com www.matheusmafioletti.com;
+
+    root /var/www/portfolio;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

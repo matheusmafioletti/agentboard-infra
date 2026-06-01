@@ -272,10 +272,39 @@ Documentação Tailscale: https://github.com/tailscale/github-action
 
   Depois merge em main em backend/web dispara publish → dispatch → deploy automático.
 
-3.5 — DNS e SSL do demo
+3.5 — DNS e SSL (HTTPS + subdomínio)
 
-  - Registro A do domínio → IP público Contabo (não o 100.x.x.x)
-  - Certbot no host ou proxy SSL na frente do nginx (porta 80 do compose)
+  DNS (registrar) — ver docs/DNS.md:
+    - A  agentboard.matheusmafioletti.com  → IP público Contabo
+    - A  matheusmafioletti.com              → mesmo IP
+    - A  www.matheusmafioletti.com          → opcional
+
+  Arquitetura:
+    - Host nginx (portas 80/443) termina TLS (Certbot / Let's Encrypt)
+    - Docker nginx escuta só 127.0.0.1:8080 (docker-compose.prod.yml)
+    - agentboard.matheusmafioletti.com → proxy → 127.0.0.1:8080
+    - matheusmafioletti.com            → /var/www/portfolio (portfólio)
+
+  Bootstrap na VPS (após deploy com bind localhost):
+
+    cd /opt/agentboard
+    git pull
+    sudo bash scripts/bootstrap-host-ssl.sh
+
+  Ou manualmente:
+    sudo apt install -y nginx certbot python3-certbot-nginx
+    sudo cp docs/host-nginx-agentboard.conf.example /etc/nginx/sites-available/agentboard
+    sudo cp docs/host-nginx-portfolio.conf.example /etc/nginx/sites-available/portfolio
+    sudo ln -sf /etc/nginx/sites-available/agentboard /etc/nginx/sites-enabled/
+    sudo ln -sf /etc/nginx/sites-available/portfolio /etc/nginx/sites-enabled/
+    sudo rm -f /etc/nginx/sites-enabled/default
+    sudo nginx -t && sudo systemctl reload nginx
+    sudo certbot --nginx \
+      -d agentboard.matheusmafioletti.com \
+      -d matheusmafioletti.com \
+      -d www.matheusmafioletti.com
+
+  DEMO_PUBLIC_URL = https://agentboard.matheusmafioletti.com (infra + web)
 
 
 ================================================================================
@@ -293,7 +322,10 @@ PARTE 4 — Checklist final
 [ ] Secrets/variables no repo agentboard-infra (GITHUB_DEPLOY_SECRETS.md)
 [ ] INFRA_DEPLOY_PAT em backend e web
 [ ] workflow_dispatch Deploy (full) concluído com sucesso
-[ ] DEMO_PUBLIC_URL = URL pública real (infra + web build-args)
+[ ] DEMO_PUBLIC_URL = https://agentboard.matheusmafioletti.com (infra + web build-args)
+[ ] DNS A records configurados (docs/DNS.md)
+[ ] Host nginx + Certbot (scripts/bootstrap-host-ssl.sh ou manual)
+[ ] https://agentboard.matheusmafioletti.com responde com certificado válido
 
 
 ================================================================================
@@ -319,7 +351,9 @@ couldn't find env file .env.prod
   → rodar workflow Deploy (full) no repo infra — gera .env.prod automaticamente
 
 Site inacessível
-  → abrir 80/443 no UFW; DNS apontando para IP público; nginx up: docker compose ps
+  → abrir 80/443 no UFW; DNS (docs/DNS.md); host nginx: systemctl status nginx
+  → docker nginx: curl -H "Host: agentboard.matheusmafioletti.com" http://127.0.0.1:8080/
+  → certbot: sudo certbot renew --dry-run
 
 ================================================================================
 Fim do guia

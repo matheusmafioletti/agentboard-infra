@@ -12,7 +12,7 @@ Backend e web apenas publicam imagens no GHCR e disparam `repository_dispatch`.
 | `VPS_HOST` | `100.x.x.x` | IP Tailscale da VPS |
 | `VPS_USER` | `deploy` | Usuário SSH |
 | `VPS_DEPLOY_PATH` | `/opt/agentboard` | Diretório do clone do infra |
-| `DEMO_PUBLIC_URL` | `https://demo.example.com` | CORS, WebSocket, invites no `.env.prod` |
+| `DEMO_PUBLIC_URL` | `https://agentboard.matheusmafioletti.com` | CORS, WebSocket, invites no `.env.prod`; build-args Vite no web |
 | `GHCR_REGISTRY` | `ghcr.io/matheusmafioletti` | Prefixo das imagens no compose |
 
 ### Secrets (Settings → Actions → Secrets)
