@@ -90,14 +90,17 @@ case "$DEPLOY_MODE" in
   backend)
     compose pull agentboard-auth agentboard-board agentboard-api-docs
     compose up -d agentboard-auth agentboard-board agentboard-api-docs nginx
+    compose restart nginx
     ;;
   web)
     compose pull agentboard-web
     compose up -d agentboard-web nginx
+    compose restart nginx
     ;;
   full)
     compose pull
     compose up -d
+    compose restart nginx
     ;;
   *)
     echo "Invalid DEPLOY_MODE: $DEPLOY_MODE" >&2
