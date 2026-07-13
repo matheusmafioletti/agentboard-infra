@@ -1,51 +1,97 @@
 services:
   postgres:
     image: postgres:16
-    env_file: .env
-    ports:
-      - "5432:5432"
+    env_file: .env.e2e
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata_e2e:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  agentboard-web:
-    image: placeholder
-    # Replace with built image tag
-    ports:
-      - "5173:5173"
-    depends_on:
-      - postgres
-
   agentboard-auth:
-    image: placeholder
-    # Replace with built image tag
-    ports:
-      - "8080:8080"
+    image: ${GHCR_REGISTRY}/agentboard-auth:${AUTH_IMAGE_TAG:-latest}
+    env_file: .env.e2e
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      INVITE_BASE_URL: ${INVITE_BASE_URL}
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health 2>/dev/null | grep -q UP || wget -qO- http://localhost:8080/auth/actuator/health 2>/dev/null | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   agentboard-board:
-    image: placeholder
-    # Replace with built image tag
-    ports:
-      - "8081:8081"
+    image: ${GHCR_REGISTRY}/agentboard-board:${BOARD_IMAGE_TAG:-latest}
+    env_file: .env.e2e
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      WEBSOCKET_ALLOWED_ORIGINS: ${WEBSOCKET_ALLOWED_ORIGINS}
     depends_on:
       postgres:
         condition: service_healthy
+      agentboard-auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health 2>/dev/null | grep -q UP || wget -qO- http://localhost:8081/api/v1/actuator/health 2>/dev/null | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   agentboard-api-docs:
-    image: placeholder
-    # Replace with built image tag
-    ports:
-      - "8082:8082"
+    image: ${GHCR_REGISTRY}/agentboard-api-docs:${API_DOCS_IMAGE_TAG:-latest}
+    environment:
+      AUTH_SERVICE_OPENAPI_URL: http://agentboard-auth:8080/v3/api-docs
+      BOARD_SERVICE_OPENAPI_URL: http://agentboard-board:8081/v3/api-docs
     depends_on:
-      - agentboard-auth
-      - agentboard-board
+      agentboard-auth:
+        condition: service_healthy
+      agentboard-board:
+        condition: service_healthy
+
+  agentboard-web:
+    image: ${GHCR_REGISTRY}/agentboard-web:${WEB_IMAGE_TAG:-e2e-latest}
+    depends_on:
+      agentboard-auth:
+        condition: service_healthy
+      agentboard-board:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "0.0.0.0:${HTTP_PORT:-8080}:80"
+    volumes:
+      - ./nginx/nginx.e2e.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      agentboard-web:
+        condition: service_started
+      agentboard-auth:
+        condition: service_healthy
+      agentboard-board:
+        condition: service_healthy
+      agentboard-api-docs:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 volumes:
-  pgdata:
+  pgdata_e2e:

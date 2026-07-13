@@ -70,9 +70,54 @@ docker compose down
 
 | `docker-compose.test.yml` | Integration test environment | postgres:5433 (no pgAdmin) |
 
-| `docker-compose.e2e.yml` | E2E test environment with app service placeholders | postgres:5432, apps:8080-8082 |
-
 | `docker-compose.prod.yml` | Demo VPS — GHCR images + nginx reverse proxy | localhost:8080 → Docker nginx (host nginx on 80/443) |
+| `docker-compose.e2e.yml` | E2E CI/local — full GHCR stack + nginx single-origin | `0.0.0.0:8080` |
+
+## E2E Stack (Docker Compose)
+
+Dedicated compose for running E2E tests against GHCR images with single-origin routing at `http://localhost:8080`.
+
+### Prerequisites
+
+- Docker Compose v2+
+- GHCR login: `echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin`
+- Web image tag **`e2e-latest`** (or `e2e-<sha>`) — never use demo `latest` web image in compose E2E
+
+### Quick start
+
+```bash
+cp .env.e2e.example .env.e2e
+./scripts/e2e-up.sh          # start stack (--wait)
+./scripts/seed-e2e-data.sh   # staging-smoke user + baseline project
+./scripts/e2e-down.sh        # stop (keeps volume)
+./scripts/e2e-reset.sh       # down -v + up — replaces per-test DB cleanup
+./scripts/e2e-wait.sh        # poll health + GET /
+```
+
+From workspace root:
+
+```bash
+./scripts/run-e2e-local.sh playwright [--reset]
+```
+
+### Image tags
+
+| Context | Tags |
+|---------|------|
+| Local `e2e-up.sh` | `latest` (auth/board/api-docs), `e2e-latest` (web) |
+| PR backend | `<sha>` (backend services), `e2e-latest` (web) |
+| PR web | `latest` (backend), `e2e-<sha>` (web) |
+| `repository_dispatch` | SHA from payload |
+
+### Seed credentials (`.env.e2e.example`)
+
+| Variable | Default |
+|----------|---------|
+| `E2E_STAGING_USER_EMAIL` | `staging-smoke@agentboard.dev` |
+| `E2E_STAGING_USER_PASSWORD` | `StagingSmoke123!` |
+| `E2E_STAGING_TENANT_NAME` | `E2E Smoke Workspace` |
+
+Used by `@staging` smoke tests and `seed-e2e-data.sh`.
 
 
 
@@ -170,7 +215,7 @@ Deploy manual: Actions → Deploy → escolher `full`, `backend` ou `web` e tags
 
 | `/ws` | `agentboard-board:8081` (WebSocket) |
 
-| `/swagger-ui` | `agentboard-api-docs:8082` |
+| `/api/swagger` | `agentboard-api-docs:8082` |
 
 
 
@@ -214,8 +259,6 @@ Setup: [`docs/DNS.md`](docs/DNS.md), [`docs/SSL-BOOTSTRAP.md`](docs/SSL-BOOTSTRA
 
 
 - `docker-compose.test.yml` maps PostgreSQL to port 5433 to avoid conflict with a local postgres installation
-
-- App service entries in `docker-compose.e2e.yml` use `image: placeholder` until real images are built
 
 - `.env.prod` e `.image-tags` na VPS são gerados pelo deploy e estão no `.gitignore`
 

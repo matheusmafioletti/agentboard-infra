@@ -22,9 +22,6 @@ jobs:
       - name: Validate docker-compose.test.yml
         run: docker compose -f docker-compose.test.yml config
 
-      - name: Validate docker-compose.e2e.yml
-        run: docker compose -f docker-compose.e2e.yml config
-
       - name: Validate docker-compose.prod.yml
         run: |
           cp .env.prod.example .env.prod

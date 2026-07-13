@@ -41,8 +41,6 @@
 | `agentboard-backend/board-service` | Spring Boot 3.2 | 8081 | Work items, board lifecycle, MCP HTTP API |
 | `agentboard-mcp-server` | Node.js 20 / TypeScript | stdio | MCP tool bridge between AI clients and board-service |
 | `agentboard-web` | React 18 / Vite 5 | 5173 | Kanban board UI for human users |
-| `agentboard-api-tests` | Java 21 / RestAssured | — | Black-box HTTP contract tests |
-| `agentboard-e2e` | Playwright 1.44 | — | Full end-to-end browser tests |
 | `agentboard-infra` | Docker Compose | — | Local and test environment infrastructure |
 
 ## Data Flow
