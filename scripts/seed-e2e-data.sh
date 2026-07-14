@@ -32,7 +32,12 @@ fi
 
 login_response="$(curl -sf -X POST "${BASE_URL}/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}")"
+  -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}" 2>/dev/null || true)"
+
+if [[ -z "${login_response}" ]]; then
+  echo "Failed to login seed user: ${EMAIL}" >&2
+  exit 1
+fi
 
 TOKEN="$(echo "${login_response}" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null \
   || echo "${login_response}" | sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"

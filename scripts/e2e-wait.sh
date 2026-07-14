@@ -46,10 +46,28 @@ wait_for_auth() {
   return 1
 }
 
+wait_for_board() {
+  local url="${BASE_URL}/api/v1/projects"
+  local attempt=1
+  while [[ $attempt -le $MAX_ATTEMPTS ]]; do
+    local status
+    status="$(curl -so /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")"
+    if [[ "$status" =~ ^(401|403)$ ]]; then
+      echo "Ready: $url (HTTP $status)"
+      return 0
+    fi
+    echo "Waiting for $url ($attempt/$MAX_ATTEMPTS, HTTP $status)..."
+    sleep "$SLEEP_SECONDS"
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
 for path in "${health_paths[@]}"; do
   wait_for_http "${BASE_URL}${path}" || exit 1
 done
 
 wait_for_auth || exit 1
+wait_for_board || exit 1
 
 echo "E2E stack ready at ${BASE_URL}"
