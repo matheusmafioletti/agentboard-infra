@@ -14,6 +14,8 @@ set -a
 source .env.e2e
 set +a
 
-docker compose -f docker-compose.e2e.yml --env-file .env.e2e up -d --wait
+docker compose -f docker-compose.e2e.yml --env-file .env.e2e up -d
+
+"${ROOT_DIR}/scripts/e2e-wait.sh"
 
 echo "E2E stack ready at http://localhost:${HTTP_PORT:-8080}"

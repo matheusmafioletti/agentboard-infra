@@ -23,12 +23,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health 2>/dev/null | grep -q UP || wget -qO- http://localhost:8080/auth/actuator/health 2>/dev/null | grep -q UP"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 60s
 
   agentboard-board:
     image: ${GHCR_REGISTRY}/agentboard-board:${BOARD_IMAGE_TAG:-latest}
@@ -44,13 +38,7 @@ services:
       postgres:
         condition: service_healthy
       agentboard-auth:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health 2>/dev/null | grep -q UP || wget -qO- http://localhost:8081/api/v1/actuator/health 2>/dev/null | grep -q UP"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 60s
+        condition: service_started
 
   agentboard-api-docs:
     image: ${GHCR_REGISTRY}/agentboard-api-docs:${API_DOCS_IMAGE_TAG:-latest}
@@ -59,17 +47,17 @@ services:
       BOARD_SERVICE_OPENAPI_URL: http://agentboard-board:8081/v3/api-docs
     depends_on:
       agentboard-auth:
-        condition: service_healthy
+        condition: service_started
       agentboard-board:
-        condition: service_healthy
+        condition: service_started
 
   agentboard-web:
     image: ${GHCR_REGISTRY}/agentboard-web:${WEB_IMAGE_TAG:-e2e-latest}
     depends_on:
       agentboard-auth:
-        condition: service_healthy
+        condition: service_started
       agentboard-board:
-        condition: service_healthy
+        condition: service_started
 
   nginx:
     image: nginx:1.27-alpine
@@ -81,17 +69,11 @@ services:
       agentboard-web:
         condition: service_started
       agentboard-auth:
-        condition: service_healthy
+        condition: service_started
       agentboard-board:
-        condition: service_healthy
+        condition: service_started
       agentboard-api-docs:
         condition: service_started
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
 
 volumes:
   pgdata_e2e:
