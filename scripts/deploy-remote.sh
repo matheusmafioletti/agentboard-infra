@@ -65,6 +65,11 @@ merge_tag BOARD_IMAGE_TAG "${BOARD_IMAGE_TAG:-}"
 merge_tag API_DOCS_IMAGE_TAG "${API_DOCS_IMAGE_TAG:-}"
 merge_tag WEB_IMAGE_TAG "${WEB_IMAGE_TAG:-}"
 
+if [[ -f "$TAGS_FILE" ]]; then
+  cp "$TAGS_FILE" "${TAGS_FILE}.rollback"
+  chmod 600 "${TAGS_FILE}.rollback"
+fi
+
 tags_tmp="$(mktemp)"
 trap 'rm -f "$tags_tmp"' EXIT
 {

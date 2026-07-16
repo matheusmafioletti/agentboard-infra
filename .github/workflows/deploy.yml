@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   repository_dispatch:
-    types: [deploy-backend, deploy-web]
+    types: [deploy-backend, deploy-web, rollback-backend, rollback-web]
   workflow_dispatch:
     inputs:
       deploy_mode:
@@ -14,6 +14,7 @@ on:
           - full
           - backend
           - web
+          - rollback
       auth_tag:
         description: AUTH_IMAGE_TAG (empty = keep current on VPS)
         required: false
@@ -35,9 +36,23 @@ concurrency:
   group: vps-production-deploy
   cancel-in-progress: false
 
+env:
+  BACKEND_REPO: matheusmafioletti/agentboard-backend
+  WEB_REPO: matheusmafioletti/agentboard-web
+
 jobs:
   deploy:
+    if: |
+      github.event.action != 'rollback-backend' &&
+      github.event.action != 'rollback-web' &&
+      (github.event_name != 'workflow_dispatch' || inputs.deploy_mode != 'rollback')
     runs-on: ubuntu-latest
+    outputs:
+      auth_tag: ${{ steps.tags.outputs.auth_tag }}
+      board_tag: ${{ steps.tags.outputs.board_tag }}
+      api_docs_tag: ${{ steps.tags.outputs.api_docs_tag }}
+      web_tag: ${{ steps.tags.outputs.web_tag }}
+      deploy_mode: ${{ steps.mode.outputs.mode }}
 
     steps:
       - name: Resolve deploy mode
@@ -62,16 +77,33 @@ jobs:
             echo "${name}=${value}" >> "$GITHUB_OUTPUT"
           }
           if [[ "${{ github.event_name }}" == "repository_dispatch" ]]; then
-            write_tag auth_tag "${{ github.event.client_payload.auth_tag }}"
-            write_tag board_tag "${{ github.event.client_payload.board_tag }}"
-            write_tag api_docs_tag "${{ github.event.client_payload.api_docs_tag }}"
-            write_tag web_tag "${{ github.event.client_payload.web_tag }}"
+            AUTH_TAG="${{ github.event.client_payload.auth_tag }}"
+            BOARD_TAG="${{ github.event.client_payload.board_tag }}"
+            API_DOCS_TAG="${{ github.event.client_payload.api_docs_tag }}"
+            WEB_TAG="${{ github.event.client_payload.web_tag }}"
+            DEPLOY_SHA="${{ github.event.client_payload.deploy_sha }}"
           else
-            write_tag auth_tag "${{ inputs.auth_tag }}"
-            write_tag board_tag "${{ inputs.board_tag }}"
-            write_tag api_docs_tag "${{ inputs.api_docs_tag }}"
-            write_tag web_tag "${{ inputs.web_tag }}"
+            AUTH_TAG="${{ inputs.auth_tag }}"
+            BOARD_TAG="${{ inputs.board_tag }}"
+            API_DOCS_TAG="${{ inputs.api_docs_tag }}"
+            WEB_TAG="${{ inputs.web_tag }}"
+            DEPLOY_SHA=""
           fi
+
+          if [[ -z "$DEPLOY_SHA" ]]; then
+            for candidate in "$AUTH_TAG" "$BOARD_TAG" "$API_DOCS_TAG" "$WEB_TAG"; do
+              if [[ -n "$candidate" && "$candidate" != "unchanged" ]]; then
+                DEPLOY_SHA="$candidate"
+                break
+              fi
+            done
+          fi
+
+          write_tag auth_tag "$AUTH_TAG"
+          write_tag board_tag "$BOARD_TAG"
+          write_tag api_docs_tag "$API_DOCS_TAG"
+          write_tag web_tag "$WEB_TAG"
+          write_tag deploy_sha "$DEPLOY_SHA"
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v2
@@ -127,3 +159,79 @@ jobs:
             cd "${{ vars.VPS_DEPLOY_PATH }}"
             test -f scripts/bootstrap-host-ssl.sh
             sudo bash scripts/bootstrap-host-ssl.sh
+
+      - name: Trigger backend post-deploy verification
+        if: |
+          (steps.mode.outputs.mode == 'backend' || steps.mode.outputs.mode == 'full') &&
+          (steps.tags.outputs.auth_tag != 'unchanged' || steps.tags.outputs.board_tag != 'unchanged' || steps.tags.outputs.api_docs_tag != 'unchanged')
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ secrets.INFRA_DEPLOY_PAT }}
+          repository: ${{ env.BACKEND_REPO }}
+          event-type: post-deploy-verify
+          client-payload: |
+            {
+              "deploy_sha": "${{ steps.tags.outputs.deploy_sha }}",
+              "auth_tag": "${{ steps.tags.outputs.auth_tag }}",
+              "board_tag": "${{ steps.tags.outputs.board_tag }}",
+              "api_docs_tag": "${{ steps.tags.outputs.api_docs_tag }}",
+              "web_tag": "${{ steps.tags.outputs.web_tag }}"
+            }
+
+      - name: Trigger web post-deploy verification
+        if: |
+          steps.mode.outputs.mode == 'web' &&
+          steps.tags.outputs.web_tag != '' &&
+          steps.tags.outputs.web_tag != 'unchanged'
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ secrets.INFRA_DEPLOY_PAT }}
+          repository: ${{ env.WEB_REPO }}
+          event-type: post-deploy-verify
+          client-payload: |
+            {
+              "deploy_sha": "${{ steps.tags.outputs.deploy_sha }}",
+              "web_tag": "${{ steps.tags.outputs.web_tag }}"
+            }
+
+  rollback:
+    if: |
+      github.event.action == 'rollback-backend' ||
+      github.event.action == 'rollback-web' ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_mode == 'rollback')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve rollback mode
+        id: mode
+        run: |
+          if [[ "${{ github.event_name }}" == "repository_dispatch" && "${{ github.event.action }}" == "rollback-web" ]]; then
+            echo "deploy_mode=web" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_mode=backend" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Rollback on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_MODE: ${{ steps.mode.outputs.deploy_mode }}
+          GHCR_REGISTRY: ${{ vars.GHCR_REGISTRY }}
+        with:
+          host: ${{ vars.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: DEPLOY_MODE,GHCR_REGISTRY
+          script: |
+            set -euo pipefail
+            cd "${{ vars.VPS_DEPLOY_PATH }}"
+            git pull --ff-only
+            test -f scripts/rollback-remote.sh
+            export DEPLOY_DIR="${{ vars.VPS_DEPLOY_PATH }}"
+            bash scripts/rollback-remote.sh
